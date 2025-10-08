@@ -1,1 +1,2 @@
-httpserver
+websockets
+websocket-client
