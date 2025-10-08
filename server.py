@@ -1,89 +1,101 @@
-import os
 import asyncio
 import websockets
 import time
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
 
-start_time = time.time()  # Record when the server starts
-clients = set()           # Set to hold connected websocket clients
+# --- Configuration ---
+PORT = int(os.getenv("PORT", 8080))  # Use environment PORT or fallback to 8080
+SERVER_LOCATION = "MI, USA 🇺🇸"
+PING_INTERVAL = 30  # seconds between automatic ping checks
 
-# --- WebSocket handler ---
-async def chat_handler(websocket, path):
-    try:
-        # First message = username
-        username = await websocket.recv()
-    except Exception:
-        return
+clients = {}  # websocket -> username
+start_time = time.time()
 
-    clients.add(websocket)
-    await safe_broadcast(f"{username} joined the chat.")
-
-    try:
-        async for message in websocket:
-            await safe_broadcast(f"{username}: {message}", sender=websocket)
-    except Exception as e:
-        print(f"[Error] chat_handler: {e}")
-    finally:
-        clients.discard(websocket)
-        await safe_broadcast(f"{username} left the chat.")
-
-
-async def safe_broadcast(message, sender=None):
-    """Broadcast message to all clients safely."""
-    dead_clients = []
-    for client in list(clients):
-        if client != sender:
+# --- Broadcast helper ---
+async def broadcast(message, exclude=None):
+    """Send a message to all connected clients, excluding 'exclude' if specified."""
+    disconnected = []
+    for ws in list(clients.keys()):
+        if ws != exclude:
             try:
-                await client.send(message)
+                await ws.send(message)
+            except websockets.exceptions.ConnectionClosed:
+                disconnected.append(ws)
+            except Exception as e:
+                print(f"[Broadcast] Error sending to {clients.get(ws)}: {e}")
+
+    # Remove disconnected clients
+    for ws in disconnected:
+        left_name = clients.pop(ws, None)
+        if left_name:
+            leave_msg = f"{left_name} left the chat."
+            print(leave_msg)
+            await broadcast(leave_msg)
+
+# --- Client handler ---
+async def handler(websocket):
+    try:
+        # Receive username from client
+        username = await websocket.recv()
+        clients[websocket] = username
+        join_msg = f"{username} joined the chat."
+        print(join_msg)
+        await broadcast(join_msg)
+
+        # Listen for messages from client
+        async for message in websocket:
+            print(f"{username}: {message}")
+            await broadcast(f"{username}: {message}", exclude=websocket)
+
+    except websockets.exceptions.ConnectionClosed:
+        pass  # Normal disconnect
+    except Exception as e:
+        print(f"[Handler] Error for {clients.get(websocket)}: {e}")
+    finally:
+        # Remove client when disconnected
+        if websocket in clients:
+            left_name = clients.pop(websocket)
+            leave_msg = f"{left_name} left the chat."
+            print(leave_msg)
+            await broadcast(leave_msg)
+
+# --- Server status task ---
+async def server_status():
+    while True:
+        await asyncio.sleep(600)  # every 10 minutes
+        uptime = int(time.time() - start_time)
+        h, m = divmod(uptime // 60, 60)
+        s = uptime % 60
+        msg = f"[Server] Connected | {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: 0 ms"
+        print(msg)
+        await broadcast(msg)
+
+# --- Ping task to check dead clients ---
+async def ping_clients():
+    while True:
+        await asyncio.sleep(PING_INTERVAL)
+        disconnected = []
+        for ws in list(clients.keys()):
+            try:
+                pong_waiter = await ws.ping()
+                await asyncio.wait_for(pong_waiter, timeout=10)
             except:
-                dead_clients.append(client)
-    for c in dead_clients:
-        clients.discard(c)
+                disconnected.append(ws)
+        for ws in disconnected:
+            left_name = clients.pop(ws, None)
+            if left_name:
+                leave_msg = f"{left_name} left the chat (ping timeout)."
+                print(leave_msg)
+                await broadcast(leave_msg)
 
-
-# --- HTTP status page ---
-class StatusHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        uptime = time.time() - start_time
-        hours, rem = divmod(uptime, 3600)
-        minutes, seconds = divmod(rem, 60)
-        uptime_str = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-        html = f"""<html>
-  <head><title>Chat Server Status</title></head>
-  <body style='font-family: sans-serif; text-align: center; margin-top: 50px'>
-    <h1>Chat Server Status</h1>
-    <p><b>Uptime:</b> {uptime_str}</p>
-    <p><b>Connected Clients:</b> {len(clients)}</p>
-  </body>
-</html>"""
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.end_headers()
-        self.wfile.write(html.encode())
-
-
-def start_http_server():
-    port = int(os.getenv("STATUS_PORT", 8080))
-    httpd = HTTPServer(("0.0.0.0", port), StatusHandler)
-    print(f"[HTTP] Status page running on port {port}")
-    httpd.serve_forever()
-
-
-# --- Start WebSocket server ---
-async def start_server_forever():
-    ws_port = int(os.getenv("WS_PORT", 5000))
-    async with websockets.serve(chat_handler, "0.0.0.0", ws_port):
-        print(f"[WebSocket] Chat server running on port {ws_port}")
-        await asyncio.Future()  # run forever
-
+# --- Main server ---
+async def main():
+    server = await websockets.serve(handler, "0.0.0.0", PORT)
+    print(f"✅ PulseChat WebSocket server running on port {PORT}")
+    # Start background tasks
+    asyncio.create_task(server_status())
+    asyncio.create_task(ping_clients())
+    await server.wait_closed()
 
 if __name__ == "__main__":
-    # Start HTTP status server in a separate thread
-    threading.Thread(target=start_http_server, daemon=True).start()
-
-    # Start WebSocket server using asyncio.run() (fixes Python 3.13 RuntimeError)
-    try:
-        asyncio.run(start_server_forever())
-    except KeyboardInterrupt:
-        print("\n[Server] Shutting down.")
+    asyncio.run(main())
