@@ -7,45 +7,40 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 start_time = time.time()  # Record when the server starts
 clients = set()           # Set to hold connected websocket clients
-lock = asyncio.Lock()     # Protect client set in async context
-
 
 async def chat_handler(websocket, path):
     try:
-        # First message = username
+        # Receive the first message as the username
         username = await websocket.recv()
-    except Exception:
+    except Exception as e:
         return
 
-    async with lock:
-        clients.add(websocket)
-    await broadcast(f"{username} joined the chat.")
+    clients.add(websocket)
+    await safe_broadcast(f"{username} joined the chat.")
 
     try:
         async for message in websocket:
-            await broadcast(f"{username}: {message}", sender=websocket)
-    except websockets.ConnectionClosed:
-        pass
+            # Broadcast the message to all connected clients except the sender
+            await safe_broadcast(f"{username}: {message}", sender=websocket)
     except Exception as e:
-        print(f"[Error] chat_handler: {e}")
+        print(f"Exception in chat_handler: {e}")
     finally:
-        async with lock:
-            clients.discard(websocket)
-        await broadcast(f"{username} left the chat.")
+        if websocket in clients:
+            clients.remove(websocket)
+        await safe_broadcast(f"{username} left the chat.")
 
 
-async def broadcast(message, sender=None):
-    """Send message to all connected clients except sender."""
-    async with lock:
-        to_remove = []
-        for client in clients:
-            if client != sender:
-                try:
-                    await client.send(message)
-                except Exception:
-                    to_remove.append(client)
-        for r in to_remove:
-            clients.discard(r)
+async def safe_broadcast(message, sender=None):
+    """Async broadcast helper to avoid closed-loop issues."""
+    dead_clients = []
+    for client in list(clients):
+        if client != sender:
+            try:
+                await client.send(message)
+            except:
+                dead_clients.append(client)
+    for c in dead_clients:
+        clients.discard(c)
 
 
 class StatusHandler(BaseHTTPRequestHandler):
@@ -54,7 +49,6 @@ class StatusHandler(BaseHTTPRequestHandler):
         hours, rem = divmod(uptime, 3600)
         minutes, seconds = divmod(rem, 60)
         uptime_str = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-
         html = f"""<html>
   <head><title>Chat Server Status</title></head>
   <body style='font-family: sans-serif; text-align: center; margin-top: 50px'>
@@ -63,7 +57,6 @@ class StatusHandler(BaseHTTPRequestHandler):
     <p><b>Connected Clients:</b> {len(clients)}</p>
   </body>
 </html>"""
-
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
@@ -77,19 +70,18 @@ def start_http_server():
     httpd.serve_forever()
 
 
-async def main():
-    # Start HTTP status server in background thread
+if __name__ == "__main__":
+    # Start the HTTP status server in a separate thread
     threading.Thread(target=start_http_server, daemon=True).start()
 
-    # Start WebSocket chat server
+    # Start the WebSocket chat server on port 5000 (or use WS_PORT env var)
     ws_port = int(os.getenv("WS_PORT", 5000))
-    async with websockets.serve(chat_handler, "0.0.0.0", ws_port):
-        print(f"[WebSocket] Chat server running on port {ws_port}")
-        await asyncio.Future()  # Run forever
+    start_server = websockets.serve(chat_handler, "0.0.0.0", ws_port)
+    print(f"[WebSocket] Chat server running on port {ws_port}")
 
-
-if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_server)
     try:
-        asyncio.run(main())
+        loop.run_forever()
     except KeyboardInterrupt:
         print("\n[Server] Shutting down.")
