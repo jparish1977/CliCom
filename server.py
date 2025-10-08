@@ -2,11 +2,13 @@ import asyncio
 import websockets
 import time
 import os
+from aiohttp import web
 
 # --- Configuration ---
-PORT = int(os.getenv("PORT", 8080))  # Use environment PORT or fallback to 8080
+PORT = int(os.getenv("PORT", 8080))        # WebSocket server port
+HEALTH_PORT = PORT + 1                     # HTTP health check port
 SERVER_LOCATION = "MI, USA 🇺🇸"
-PING_INTERVAL = 30  # seconds between automatic ping checks
+PING_INTERVAL = 30                          # seconds between ping checks
 
 clients = {}  # websocket -> username
 start_time = time.time()
@@ -33,26 +35,23 @@ async def broadcast(message, exclude=None):
             await broadcast(leave_msg)
 
 # --- Client handler ---
-async def handler(websocket):
+async def handler(websocket, path):
     try:
-        # Receive username from client
         username = await websocket.recv()
         clients[websocket] = username
         join_msg = f"{username} joined the chat."
         print(join_msg)
         await broadcast(join_msg)
 
-        # Listen for messages from client
         async for message in websocket:
             print(f"{username}: {message}")
             await broadcast(f"{username}: {message}", exclude=websocket)
 
     except websockets.exceptions.ConnectionClosed:
-        pass  # Normal disconnect
+        pass
     except Exception as e:
         print(f"[Handler] Error for {clients.get(websocket)}: {e}")
     finally:
-        # Remove client when disconnected
         if websocket in clients:
             left_name = clients.pop(websocket)
             leave_msg = f"{left_name} left the chat."
@@ -70,7 +69,7 @@ async def server_status():
         print(msg)
         await broadcast(msg)
 
-# --- Ping task to check dead clients ---
+# --- Ping task to detect dead clients ---
 async def ping_clients():
     while True:
         await asyncio.sleep(PING_INTERVAL)
@@ -88,14 +87,30 @@ async def ping_clients():
                 print(leave_msg)
                 await broadcast(leave_msg)
 
+# --- Health check endpoint for Render ---
+async def health(request):
+    return web.Response(text="OK")
+
 # --- Main server ---
 async def main():
-    server = await websockets.serve(handler, "0.0.0.0", PORT)
+    # Start WebSocket server on /ws
+    ws_server = await websockets.serve(handler, "0.0.0.0", PORT, ping_interval=None)
     print(f"✅ PulseChat WebSocket server running on port {PORT}")
+
     # Start background tasks
     asyncio.create_task(server_status())
     asyncio.create_task(ping_clients())
-    await server.wait_closed()
+
+    # Start HTTP server for health checks
+    app = web.Application()
+    app.router.add_get("/health", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", HEALTH_PORT)
+    await site.start()
+    print(f"✅ Health check endpoint running on port {HEALTH_PORT}")
+
+    await ws_server.wait_closed()
 
 if __name__ == "__main__":
     asyncio.run(main())
