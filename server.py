@@ -1,62 +1,51 @@
-import asyncio
-import websockets
-import time
 import os
+import asyncio
+import time
+from aiohttp import web
 
-# Use Render's PORT or fallback to 8080 locally
-PORT = int(os.getenv("PORT", 8080))
-clients = {}  # websocket -> username
-start_time = time.time()
-SERVER_LOCATION = "MI, USA "
+start_time = time.time()  # Record when the server starts
+clients = set()  # Set to hold connected websocket clients
 
-# --- Broadcast helper ---
-async def broadcast(message, exclude=None):
-    for ws in list(clients.keys()):
-        if ws != exclude:
-            try:
-                await ws.send(message)
-            except:
-                clients.pop(ws, None)
+async def websocket_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    clients.add(ws)
+    async for msg in ws:
+        if msg.type == web.WSMsgType.TEXT:
+            text = msg.data.strip()
+            # Broadcast the received message to all other connected clients
+            for client in list(clients):
+                if client != ws and not client.closed:
+                    try:
+                        await client.send_str(text)
+                    except Exception as e:
+                        print(f"Error sending to client: {e}")
+        elif msg.type == web.WSMsgType.ERROR:
+            print(f"WebSocket connection closed with exception: {ws.exception()}")
+    clients.remove(ws)
+    return ws
 
-# --- Client handler ---
-async def handler(websocket):
-    try:
-        username = await websocket.recv()
-        clients[websocket] = username
-        join_msg = f"{username} joined the chat."
-        print(join_msg)
-        await broadcast(join_msg)
+async def status_handler(request):
+    uptime = time.time() - start_time
+    hours, rem = divmod(uptime, 3600)
+    minutes, seconds = divmod(rem, 60)
+    uptime_str = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+    html = f"""
+    <html>
+      <head><title>Chat Server Status</title></head>
+      <body style='font-family:sans-serif; text-align:center; margin-top:50px'>
+        <h1>Chat Server Status</h1>
+        <p><b>Uptime:</b> {uptime_str}</p>
+        <p><b>Connected Clients:</b> {len(clients)}</p>
+      </body>
+    </html>
+    """
+    return web.Response(text=html, content_type="text/html")
 
-        async for message in websocket:
-            print(f"{username}: {message}")
-            await broadcast(f"{username}: {message}", exclude=websocket)
-
-    except:
-        pass
-    finally:
-        if websocket in clients:
-            left_name = clients.pop(websocket)
-            leave_msg = f"{left_name} left the chat."
-            print(leave_msg)
-            await broadcast(leave_msg)
-
-# --- Server status every 10 min ---
-async def server_status():
-    while True:
-        await asyncio.sleep(600)  # 10 min
-        uptime = int(time.time() - start_time)
-        h, m = divmod(uptime // 60, 60)
-        s = uptime % 60
-        msg = f"[Server] Connected | {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: 0 ms"
-        print(msg)
-        await broadcast(msg)
-
-# --- Main ---
-async def main():
-    server = await websockets.serve(handler, "0.0.0.0", PORT)
-    print(f"✅ PulseChat WebSocket server running on port {PORT}")
-    asyncio.create_task(server_status())
-    await server.wait_closed()
+app = web.Application()
+app.router.add_get("/", status_handler)
+app.router.add_get("/ws", websocket_handler)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    HTTP_PORT = int(os.getenv("PORT", 8080))
+    web.run_app(app, host="0.0.0.0", port=HTTP_PORT)
