@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # --- Config ---
 CHAT_HOST = "0.0.0.0"
-CHAT_PORT = 5000
+CHAT_PORT = 8080
 HTTP_PORT = int(os.getenv("PORT", 8080))
 
 # If you want to customize location text, change this:
@@ -117,3 +117,4 @@ if __name__ == "__main__":
     # Start chat + HTTP server
     threading.Thread(target=start_chat_server, daemon=True).start()
     start_http_server()
+
