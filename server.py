@@ -8,10 +8,11 @@ clients = {}
 start_time = time.time()
 SERVER_LOCATION = "MI, USA 🇺🇸"
 
-# Handle GET & HEAD health checks
+# --- Handle GET & HEAD health checks ---
 async def http_handler(path, request_headers):
     return 200, [("Content-Type", "text/plain")], b"OK\n"
 
+# --- Broadcast helper ---
 async def broadcast(message, exclude=None):
     disconnected = []
     for ws in list(clients.keys()):
@@ -26,6 +27,7 @@ async def broadcast(message, exclude=None):
             await broadcast(f"{left_name} left the chat.")
     await broadcast_online_users()
 
+# --- Broadcast online users list ---
 async def broadcast_online_users():
     if clients:
         msg = f"[Server] Online: {', '.join(clients.values())}"
@@ -35,6 +37,7 @@ async def broadcast_online_users():
             except:
                 pass
 
+# --- Client handler ---
 async def handler(websocket):
     try:
         username = await websocket.recv()
@@ -45,7 +48,7 @@ async def handler(websocket):
         async for message in websocket:
             if message.strip().lower() == "/help":
                 await websocket.send(
-                    "[Server] Commands:\n/help - Show commands\n<message> - Chat\n"
+                    "[Server] Commands:\n/help - Show this help\n<message> - Send message\n"
                 )
             else:
                 await broadcast(f"{username}: {message}", exclude=websocket)
@@ -58,6 +61,7 @@ async def handler(websocket):
             await broadcast(f"{left_name} left the chat.")
             await broadcast_online_users()
 
+# --- Status message every 10 min ---
 async def server_status():
     while True:
         await asyncio.sleep(600)
@@ -67,6 +71,7 @@ async def server_status():
         msg = f"[Server] {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: 0 ms"
         await broadcast(msg)
 
+# --- Main ---
 async def main():
     server = await websockets.serve(
         handler,
