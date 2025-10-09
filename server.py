@@ -1,20 +1,20 @@
 import asyncio
 import websockets
-import time
 import os
+import time
 
 PORT = int(os.getenv("PORT", 8080))
-clients = {}  # websocket -> username
+clients = {}
 clients_lock = asyncio.Lock()
 start_time = time.time()
 SERVER_LOCATION = "MI, USA 🇺🇸"
 
-# --- HTTP handler for health checks ---
+# Handles HTTP HEAD/GET to avoid handshake errors
 async def http_handler(path, request_headers):
-    return 200, [("Content-Type", "text/plain")], b"WebSocket server running.\n"
+    return 200, [("Content-Type", "text/plain")], b"WebSocket server OK\n"
 
-# --- Broadcast helper ---
-async def broadcast_message(message, exclude=None):
+# Broadcast message to everyone
+async def broadcast(message, exclude=None):
     async with clients_lock:
         to_remove = []
         for ws in list(clients.keys()):
@@ -24,34 +24,33 @@ async def broadcast_message(message, exclude=None):
                 except:
                     to_remove.append(ws)
         for ws in to_remove:
-            clients.pop(ws, None)
+            if ws in clients:
+                left_name = clients.pop(ws)
+                await broadcast(f"{left_name} left the chat.")
+        await broadcast_online_users()
 
-# --- Broadcast online users ---
+# Send updated online users list
 async def broadcast_online_users():
     async with clients_lock:
         if clients:
             online_list = ", ".join(clients.values())
-            msg = f"[Server] Online users: {online_list}"
-            for ws in list(clients.keys()):
+            msg = f"[Server] Online: {online_list}"
+            for ws in clients.keys():
                 try:
                     await ws.send(msg)
                 except:
-                    clients.pop(ws, None)
+                    pass
 
-# --- Each client connection ---
+# Handle each client connection
 async def handler(websocket):
     try:
         username = await websocket.recv()
         async with clients_lock:
             clients[websocket] = username
-        join_msg = f"{username} joined the chat."
-        print(join_msg)
-        await broadcast_message(join_msg)
-        await broadcast_online_users()
+        await broadcast(f"{username} joined the chat.")
 
         async for message in websocket:
-            print(f"{username}: {message}")
-            await broadcast_message(f"{username}: {message}", exclude=websocket)
+            await broadcast(f"{username}: {message}", exclude=websocket)
 
     except websockets.ConnectionClosed:
         pass
@@ -59,31 +58,27 @@ async def handler(websocket):
         async with clients_lock:
             if websocket in clients:
                 left_name = clients.pop(websocket)
-                leave_msg = f"{left_name} left the chat."
-                print(leave_msg)
-                await broadcast_message(leave_msg)
-                await broadcast_online_users()
+                await broadcast(f"{left_name} left the chat.")
 
-# --- Periodic server status ---
+# Periodic server status
 async def server_status():
     while True:
         await asyncio.sleep(600)
         uptime = int(time.time() - start_time)
         h, m = divmod(uptime // 60, 60)
         s = uptime % 60
-        msg = f"[Server] Connected | {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: 0 ms"
-        print(msg)
-        await broadcast_message(msg)
+        msg = f"[Server] {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s"
+        await broadcast(msg)
 
-# --- Main ---
+# Main server
 async def main():
     server = await websockets.serve(
         handler,
         "0.0.0.0",
         PORT,
-        process_request=http_handler  # avoids HEAD crash
+        process_request=http_handler
     )
-    print(f"✅ PulseChat WebSocket server running on port {PORT}")
+    print(f"✅ Chat server running on ws://0.0.0.0:{PORT}")
     asyncio.create_task(server_status())
     await server.wait_closed()
 
