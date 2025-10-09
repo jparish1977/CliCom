@@ -3,16 +3,15 @@ import websockets
 import os
 import time
 
-PORT = int(os.getenv("PORT", 8080))
-clients = {}  # websocket -> username
+PORT = int(os.getenv("PORT", 10000))
+clients = {}
 start_time = time.time()
 SERVER_LOCATION = "MI, USA 🇺🇸"
 
-# --- Handle HEAD/GET requests (Render health checks) ---
+# Handle GET & HEAD health checks
 async def http_handler(path, request_headers):
-    return 200, [("Content-Type", "text/plain")], b"WebSocket server is running.\n"
+    return 200, [("Content-Type", "text/plain")], b"OK\n"
 
-# --- Broadcast to all clients ---
 async def broadcast(message, exclude=None):
     disconnected = []
     for ws in list(clients.keys()):
@@ -27,18 +26,15 @@ async def broadcast(message, exclude=None):
             await broadcast(f"{left_name} left the chat.")
     await broadcast_online_users()
 
-# --- Show online users ---
 async def broadcast_online_users():
     if clients:
-        online_list = ", ".join(clients.values())
-        msg = f"[Server] Online: {online_list}"
+        msg = f"[Server] Online: {', '.join(clients.values())}"
         for ws in list(clients.keys()):
             try:
                 await ws.send(msg)
             except:
                 pass
 
-# --- Handle each client ---
 async def handler(websocket):
     try:
         username = await websocket.recv()
@@ -48,12 +44,9 @@ async def handler(websocket):
 
         async for message in websocket:
             if message.strip().lower() == "/help":
-                help_text = (
-                    "[Server] Commands:\n"
-                    "  /help - Show this message\n"
-                    "  Just type anything else to chat\n"
+                await websocket.send(
+                    "[Server] Commands:\n/help - Show commands\n<message> - Chat\n"
                 )
-                await websocket.send(help_text)
             else:
                 await broadcast(f"{username}: {message}", exclude=websocket)
 
@@ -65,18 +58,15 @@ async def handler(websocket):
             await broadcast(f"{left_name} left the chat.")
             await broadcast_online_users()
 
-# --- Server status broadcast ---
 async def server_status():
     while True:
         await asyncio.sleep(600)
         uptime = int(time.time() - start_time)
         h, m = divmod(uptime // 60, 60)
         s = uptime % 60
-        ping = 0
-        msg = f"[Server] {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: {ping} ms"
+        msg = f"[Server] {SERVER_LOCATION} | Uptime: {h}h {m}m {s}s | Ping: 0 ms"
         await broadcast(msg)
 
-# --- Main entry ---
 async def main():
     server = await websockets.serve(
         handler,
@@ -84,7 +74,7 @@ async def main():
         PORT,
         process_request=http_handler
     )
-    print(f"✅ Chat server running on ws://0.0.0.0:{PORT}")
+    print(f"✅ WebSocket server running on 0.0.0.0:{PORT}")
     asyncio.create_task(server_status())
     await server.wait_closed()
 
