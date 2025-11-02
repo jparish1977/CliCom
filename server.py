@@ -9,29 +9,28 @@ async def index(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-
     clients.add(ws)
     print(f"[+] New client connected ({len(clients)} online)")
 
-    # Notify everyone about new join
-    for c in clients:
-        if c != ws:
-            await c.send_str(f"[Server] A new user joined. ({len(clients)} online)")
+    # Announce new user to everyone
+    for client in clients:
+        if client != ws:
+            await client.send_str(f"[Server] A user joined. ({len(clients)} online)")
 
     try:
         async for msg in ws:
             if msg.type == web.WSMsgType.TEXT:
-                # Broadcast to all clients
-                for c in clients:
-                    if c != ws:
-                        await c.send_str(msg.data)
+                # Broadcast to all other clients
+                for client in clients:
+                    if client != ws:
+                        await client.send_str(msg.data)
             elif msg.type == web.WSMsgType.ERROR:
                 print(f"WebSocket error: {ws.exception()}")
     finally:
         clients.remove(ws)
-        print(f"[-] Client left ({len(clients)} online)")
-        for c in clients:
-            await c.send_str(f"[Server] A user left. ({len(clients)} online)")
+        print(f"[-] Client disconnected ({len(clients)} online)")
+        for client in clients:
+            await client.send_str(f"[Server] A user left. ({len(clients)} online)")
 
     return ws
 
