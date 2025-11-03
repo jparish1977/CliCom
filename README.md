@@ -5,7 +5,6 @@ Lightweight WebSocket chat system with both server and clients (terminal + web) 
 This repository contains:
 - `server.py`: A simple async chat server that accepts WebSocket connections and broadcasts messages.
 - `main.py`: A feature-rich terminal client with colors, stats tracking, and a nice ASCII banner.
-- `client.html`: A minimal web client for browser-based chat.
 
 ## Features
 
@@ -23,7 +22,6 @@ Terminal Client (`main.py`):
 ## Project Files
 - `server.py` — WebSocket chat server (aiohttp)
 - `main.py` — Terminal client with colorful UI
-- `client.html` — Browser-based client
 - `requirements.txt` — Python dependencies
 
 ## Requirements
@@ -94,11 +92,6 @@ Terminal client (`main.py`) supports:
 - `/exit` — Leave the chat
 - `/stats` — Show your message counts and unique users met
 - `/who` — List active users
-
-Web client (`client.html`):
-- Enter name and color
-- Connect/disconnect buttons
-- Who button to list users
 
 ## Notes & Next steps
 - Add room support to allow private conversations
