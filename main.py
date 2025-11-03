@@ -8,9 +8,17 @@ from colorama import Fore, Style, init
 
 init(autoreset=True)
 
-SERVER_URL = "wss://clicom.onrender.com/ws"
+# Settings files
 SETTINGS_FILE = "user_settings.json"
 MEMORY_FILE = "clicom_memory.json"
+
+# Server settings with settings file override
+DEFAULT_SERVER = "wss://clicom.onrender.com/ws"
+LOCAL_SERVER = "ws://localhost:10000/ws"
+
+def get_server_url():
+    settings = load_json(SETTINGS_FILE, {})
+    return settings.get("server", DEFAULT_SERVER)
 
 NAMED_COLORS = {
     1: ("Cyan", Fore.CYAN),
@@ -25,9 +33,17 @@ SYSTEM_COLOR = Fore.LIGHTBLACK_EX + Style.BRIGHT
 # === Utility Functions ===
 def clear(): os.system("cls" if os.name=="nt" else "clear")
 def save_json(path, data):
-    with open(path,"w") as f: json.dump(data,f,indent=2)
-def load_json(path,default): 
-    return json.load(open(path,"r")) if os.path.exists(path) else default
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+def load_json(path, default):
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if data else default  # Return default if file is empty dict/list
+        return default
+    except (json.JSONDecodeError, IOError):
+        return default  # Return default on invalid JSON or read errors
 
 def ansi_from_hex(hex_color):
     hex_color = hex_color.lstrip("#")
@@ -72,11 +88,14 @@ def show_banner(user_color=Fore.CYAN):
 # === Chat Client ===
 async def chat_client(name, color_code):
     memory = load_json(MEMORY_FILE,{"met":{},"sent":0,"received":0})
+    server_url = get_server_url()
     print(SYSTEM_COLOR + f"🌐 Connecting as {name}...")
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(SERVER_URL) as ws:
+    timeout = aiohttp.ClientTimeout(total=20)  # Set a 20-second timeout for the connection
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        # TODO: Handle connection errors
+        async with session.ws_connect(server_url) as ws:
             await ws.send_json({"type":"join","name":name})
-            print(SYSTEM_COLOR+"✅ Connected! Type '/exit' to leave, '/stats' for stats, '/who' to see users.\n")
+            print(SYSTEM_COLOR+"✅ Connected! Commands: /exit, /stats, /who, /color, /server <url>\n")
 
             async def recv():
                 async for msg in ws:
@@ -119,6 +138,38 @@ async def chat_client(name, color_code):
                         print(SYSTEM_COLOR+f"📊 Sent: {memory['sent']}, Received: {memory['received']}, Met: {len(memory['met'])}")
                     elif msg.strip().lower()=="/who":
                         await ws.send_json({"type":"who"})
+                    elif msg.strip().lower()=="/server" or msg.strip().lower().startswith("/server "):
+                        if msg.strip().lower()=="/server":
+                            print(SYSTEM_COLOR+f"🌐 Current server: {get_server_url()}")
+                        else:
+                                raw = msg.strip()[8:].strip()
+                                low = raw.lower()
+                                # Support shortcuts
+                                if low == "default":
+                                    new_server = DEFAULT_SERVER
+                                elif low == "local":
+                                    new_server = LOCAL_SERVER
+                                elif raw.startswith(("ws://", "wss://")):
+                                    new_server = raw
+                                else:
+                                    print(SYSTEM_COLOR+"❌ Invalid server. Use 'default', 'local', or a full ws:// or wss:// URL.")
+                                    continue
+
+                                print(SYSTEM_COLOR+f"🔄 Switching to {new_server}...")
+                                settings = load_json(SETTINGS_FILE,{})
+                                settings["server"] = new_server
+                                save_json(SETTINGS_FILE,settings)
+                                print(SYSTEM_COLOR+"✨ Server updated! Restart the client to connect.")
+                    elif msg.strip().lower()=="/color":
+                        nonlocal color_code
+                        print(SYSTEM_COLOR+"🎨 Pick a new color:")
+                        _, new_color = pick_color()
+                        color_code = new_color
+                        # Update settings file with new color
+                        settings = load_json(SETTINGS_FILE,{})
+                        settings["color_code"] = new_color
+                        save_json(SETTINGS_FILE,settings)
+                        print(SYSTEM_COLOR+"✨ Color updated!")
                     elif msg.strip():
                         await ws.send_json({"type":"message","name":name,"color":color_code,"text":msg})
 

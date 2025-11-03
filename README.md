@@ -47,7 +47,6 @@ python .\server.py
 Run the terminal client (in another terminal):
 ```powershell
 python .\main.py
-# Connects to ws://localhost:10000/ws by default
 ```
 
 The server listens on `0.0.0.0:$PORT` (default 10000). Connect a WebSocket client to ws://localhost:10000/ws
@@ -92,10 +91,14 @@ Terminal client (`main.py`) supports:
 - `/exit` — Leave the chat
 - `/stats` — Show your message counts and unique users met
 - `/who` — List active users
+- `/color` — Change your chat color (named colors or hex)
+- `/server <url>` — Changes the server url `default`, `local`, `wss://<host:port>/ws`, `ws://<host:port>/ws`
 
 ## Notes & Next steps
+- Add connection error handling (allow chnage server or retry?)
+- Add automatic reconnect when server changes
 - Add room support to allow private conversations
-- Improve logging (use `logging` instead of `print`).
+- Add error logging.
 - Validate incoming JSON more strictly and add message size/rate limits.
 - Add tests (unit tests for broadcast helpers and a small integration test that connects a client).
 - Consider adding:
