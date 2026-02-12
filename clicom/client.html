@@ -41,7 +41,8 @@
 
     <main>
       <div style="padding:12px">
-        <label>Your name: <input id="name" type="text" placeholder="Guest"/></label>
+        <label>Server: <input id="server" type="text" placeholder="ws://localhost:10000/ws"/></label>
+        <label style="margin-left:8px">Your name: <input id="name" type="text" placeholder="Guest"/></label>
         <label style="margin-left:8px">Color: <input id="color" type="text" placeholder="6 or #ff6600"/></label>
         <button id="connect">Connect</button>
         <button id="disconnect" disabled>Disconnect</button>
@@ -58,6 +59,7 @@
     <script>
       let ws = null;
       const chat = document.getElementById('chat');
+      const serverEl = document.getElementById('server');
       const nameEl = document.getElementById('name');
       const colorEl = document.getElementById('color');
       const connectBtn = document.getElementById('connect');
@@ -91,6 +93,8 @@
       }
 
       function wsUrl(){
+        let custom = (serverEl.value || '').trim();
+        if(custom) return custom;
         const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
         return p + '//' + location.host + '/ws';
       }
@@ -133,8 +137,24 @@
 
       input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendBtn.click(); });
 
-      // Initialize theme selector on startup
-      initTheme();
+      // Load stored server/name/color
+      try{
+        const stored = JSON.parse(localStorage.getItem('clicom-user') || '{}');
+        if(stored.server) serverEl.value = stored.server;
+        if(stored.name) nameEl.value = stored.name;
+        if(stored.color) colorEl.value = stored.color;
+      }catch(e){}
+
+      // Save settings on input
+      serverEl.addEventListener('change', ()=>{
+        try{ localStorage.setItem('clicom-user', JSON.stringify({server: serverEl.value, name: nameEl.value, color: colorEl.value})); }catch(e){}
+      });
+      nameEl.addEventListener('change', ()=>{
+        try{ localStorage.setItem('clicom-user', JSON.stringify({server: serverEl.value, name: nameEl.value, color: colorEl.value})); }catch(e){}
+      });
+      colorEl.addEventListener('change', ()=>{
+        try{ localStorage.setItem('clicom-user', JSON.stringify({server: serverEl.value, name: nameEl.value, color: colorEl.value})); }catch(e){}
+      });
     </script>
   </body>
 </html>

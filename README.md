@@ -72,6 +72,15 @@ Web Browser Client (`clicom/client.html`):
 - Includes a Light / Dark theme picker (persisted in browser `localStorage`)
 - Simple inputs for name and color (accepts named codes like `6` or HEX like `#ff6600`)
 
+Game Lobby (`clicom/game-lobby.html`):
+- A player-to-player challenge system for Scorched Earth
+- Players connect and see online players
+- Challenge other players directly from the UI
+- Active challenges are listed and can be accepted
+- Embedded game area (iframe-ready for Scorched Earth)
+- Side-by-side chat while playing
+- Access at `http://localhost:10000/game-lobby`
+
 ## Project Files
 - `server.py` — WebSocket chat server (aiohttp)
 - `main.py` — Terminal client with colorful UI
@@ -97,9 +106,11 @@ python .\server.py
 # Server listens on 0.0.0.0:10000
 ```
 
-Open the browser client (same machine):
+Open the browser clients (same machine):
 
-- http://localhost:10000/client
+- Chat client: http://localhost:10000/client
+- Game lobby: http://localhost:10000/game-lobby
+- Game only: http://localhost:10000/scorch
 
 Run the terminal client (in another terminal):
 ```powershell
@@ -111,6 +122,21 @@ The server listens on `0.0.0.0:$PORT` (default 10000). Connect a WebSocket clien
 ## Web Client Notes
 - Theme: The browser client includes a Light/Dark picker. The selected theme is stored in `localStorage` (key `clicom-theme`) and persists across reloads. If no stored theme exists, it defaults to the system preference.
 - Colors: The client accepts named color codes (1-6) and custom HEX values (e.g., `#ff6600`). The terminal client and server follow the same simple color convention.
+
+## Game Lobby (Scorch Integration)
+The game lobby at `/game-lobby` allows players to:
+1. Connect and see online players on the left sidebar
+2. Challenge another player by clicking their name
+3. Accept incoming challenges
+4. Play Scorch (an HTML5 Scorched Earth clone) in the embedded game area
+
+The embedded game is a JavaScript-based Scorch clone that runs directly in the browser with Canvas rendering. Players can:
+- Select 2, 3, or 4 players
+- Control tanks with arrow keys (angle, power)
+- Fire cannons with spacebar
+- The last tank standing wins!
+
+**Credits:** Scorch game by [webermn15](https://github.com/webermn15/Scorch_a-scorched-earth-clone) (CC-licensed)
 
 ## WebSocket protocol (JSON)
 Clients and server exchange JSON objects with a `type` field.

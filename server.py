@@ -2,8 +2,10 @@ import asyncio
 import json
 from pathlib import Path
 from aiohttp import web
+import uuid
 
 connected_users = {}  # ws -> username
+active_challenges = []  # list of challenge dicts
 
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
@@ -41,6 +43,31 @@ async def websocket_handler(request):
         elif msg_type == "who":
             users = list(connected_users.values())
             await ws.send_json({"type": "who", "users": users})
+
+        # --- Challenge another player ---
+        elif msg_type == "challenge":
+            challenger = data.get("challenger", "Guest")
+            opponent = data.get("opponent", "Guest")
+            challenge = {
+                "challenge_id": str(uuid.uuid4()),
+                "type": "challenge",
+                "challenger": challenger,
+                "opponent": opponent,
+                "timestamp": data.get("timestamp", 0)
+            }
+            active_challenges.append(challenge)
+            await broadcast_challenge(challenge)
+            print(f"⚔️ {challenger} challenged {opponent}")
+
+        # --- Accept challenge ---
+        elif msg_type == "accept-challenge":
+            challenge_id = data.get("challenge_id")
+            matching = [c for c in active_challenges if c.get("challenge_id") == challenge_id]
+            if matching:
+                challenge = matching[0]
+                active_challenges.remove(challenge)
+                await broadcast_system(f"{challenge['challenger']} and {challenge['opponent']} started a game!")
+                print(f"🎮 Game started: {challenge['challenger']} vs {challenge['opponent']}")
 
         # --- User leaves ---
         elif msg_type == "leave":
@@ -86,6 +113,13 @@ async def broadcast_active_users():
         except:
             if ws in connected_users: del connected_users[ws]
 
+async def broadcast_challenge(challenge):
+    for ws in list(connected_users.keys()):
+        try:
+            await ws.send_json(challenge)
+        except:
+            if ws in connected_users: del connected_users[ws]
+
 async def index(request):
     # Serve a plain-text index; the browser client is available at /client
     return web.Response(text="Clicom Chat Server is running. Visit /client for the web client.", content_type="text/plain")
@@ -99,10 +133,37 @@ async def client_page(request):
         return web.FileResponse(path=str(client_file))
     return web.Response(text="Client not found.", status=404)
 
+async def game_lobby_page(request):
+    # Return the game-lobby.html file from the clicom/ folder
+    root = Path(__file__).parent / 'clicom'
+    lobby_file = root / 'game-lobby.html'
+    if lobby_file.exists():
+        return web.FileResponse(path=str(lobby_file))
+    return web.Response(text="Game lobby not found.", status=404)
+
+async def game_page(request):
+    # Return the game.html file from the clicom/ folder
+    root = Path(__file__).parent / 'clicom'
+    game_file = root / 'game.html'
+    if game_file.exists():
+        return web.FileResponse(path=str(game_file))
+    return web.Response(text="Game not found.", status=404)
+
+async def scorch_page(request):
+    # Return the scorch.html file from the clicom/ folder
+    root = Path(__file__).parent / 'clicom'
+    scorch_file = root / 'scorch.html'
+    if scorch_file.exists():
+        return web.FileResponse(path=str(scorch_file))
+    return web.Response(text="Scorch game not found.", status=404)
+
 app = web.Application()
 app.add_routes([
     web.get("/", index),
     web.get("/client", client_page),
+    web.get("/game", scorch_page),
+    web.get("/scorch", scorch_page),
+    web.get("/game-lobby", game_lobby_page),
     web.get("/ws", websocket_handler)
 ])
 

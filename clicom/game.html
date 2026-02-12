@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Scorched Earth — Clicom</title>
+    <style>
+      body { font-family: system-ui; margin: 0; padding: 0; background: #000; color: #fff; }
+      .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+      .message { text-align: center; margin: 20px; }
+      h1 { margin-bottom: 10px; }
+      p { opacity: 0.8; margin: 10px 0; }
+      .fallback { margin-top: 20px; padding: 20px; background: #111; border: 1px solid #333; border-radius: 4px; max-width: 600px; }
+      a { color: #4f9; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .applet-container { background: #000; border: 2px solid #333; }
+      /* Applet fallback info */
+      .info { display: inline-block; background: #0b5; color: #000; padding: 10px 20px; border-radius: 4px; margin: 10px 0; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="message">
+        <h1>Scorched Earth — Clicom Game</h1>
+        
+        <!-- Java Applet (deprecated but included for compatibility) -->
+        <div class="applet-container" style="width: 800px; height: 600px; margin: 20px auto;">
+          <applet code="scorch.client.ScorchApplet.class" archive="ScorchAppletClient.jar" width="800" height="600">
+            <param name="scriptable" value="false" />
+            <strong>Java Applet Not Supported</strong>
+            <p>Your browser does not support Java applets. This is normal for modern browsers.</p>
+          </applet>
+        </div>
+
+        <div class="fallback">
+          <p><strong>⚠️ Note:</strong> Java applets are deprecated and no longer supported in modern web browsers for security reasons.</p>
+          
+          <p>To play Scorched Earth locally, you have options:</p>
+          
+          <div style="text-align: left; margin: 15px 0;">
+            <p><strong>Option 1: Desktop Client</strong></p>
+            <p>Build and run the desktop version from the <a href="https://gitlab.com/donovani/scorched-earth">Scorched Earth repository</a>:</p>
+            <code>gradle scorchDesktopClientJar</code>
+            <p>Then run: <code>java -jar build/ScorchDesktopClient.jar</code></p>
+            
+            <p style="margin-top: 20px;"><strong>Option 2: Modern Web Port</strong></p>
+            <p>A modern web-based version would require converting the game to JavaScript/Canvas (WebGL). This is a significant undertaking.</p>
+            
+            <p style="margin-top: 20px;"><strong>Option 3: Return to Lobby</strong></p>
+            <p><a href="/game-lobby">← Back to Game Lobby</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

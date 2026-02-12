@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Scorch — Clicom Game</title>
+    <link rel="stylesheet" type="text/css" href="/clicom/css/style.css" />
+    <style>
+      :root { --bg:#111; --text:#eee; --header-bg:#0b5; --header-text:#002; --muted: #999; }
+      .theme-light { --bg: #f6f7f9; --text:#111; --header-bg:#e6f2ff; --header-text:#0b2; --muted:#555; }
+      .theme-dark  { --bg:#0f1113; --text:#eaeaea; --header-bg:#0b5; --header-text:#002; --muted:#999; }
+
+      html,body { height:100%; margin: 0; padding: 0; }
+      body { font-family: system-ui,Segoe UI,Arial; background:var(--bg); color:var(--text); transition: background .18s ease, color .18s ease; }
+      header { background:var(--header-bg); padding: 12px; color:var(--header-text); display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+      .content { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 12px; min-height: calc(100vh - 60px); overflow-y: auto; }
+      .canvas-container { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px; }
+      .info-container { background: var(--input-bg, #111); padding: 12px; border-radius: 4px; display: flex; gap: 24px; justify-content: center; margin-bottom: 16px; }
+      #turn, #power, #angle { font-weight: bold; }
+      #button-container { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+      button { padding: 8px 16px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); background: #4f9; color: #000; font-weight: bold; cursor: pointer; }
+      button:hover { opacity: .9; }
+      p { max-width: 600px; text-align: center; opacity: .8; font-size: .9em; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>Scorch — Clicom Game</strong>
+        <div style="font-size:.9em">Classic artillery game</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:.9em">Theme:
+          <select id="theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <a href="/game-lobby" style="color: inherit; text-decoration: none; padding: 6px 12px; background: var(--accent, #4f9); color: #000; border-radius: 4px; font-weight: bold;">← Back</a>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- Game Canvas -->
+      <div class="canvas-container">
+        <canvas id="background" width="1002px" height="625px"></canvas>
+        <canvas id="game-board" width="1000px" height="625px"></canvas>
+        <div class="modal">
+          <div id="modal-inner"></div>
+        </div>
+      </div>
+
+      <!-- Game Info -->
+      <div class="info-container">
+        <div id="turn"></div>
+        <div id="power"></div>
+        <div id="angle"></div>
+      </div>
+
+      <!-- Player Selection -->
+      <div id="button-container">
+        <button id="2players">Two Players</button>
+        <button id="3players">Three Players</button>
+        <button id="4players">Four Players</button>
+      </div>
+
+      <!-- Instructions -->
+      <p>
+        <strong>Controls:</strong><br/>
+        Left/Right arrow keys: Angle your cannon<br/>
+        Up/Down arrow keys: Adjust power<br/>
+        Spacebar: Fire your cannon<br/>
+        Last tank standing wins!
+      </p>
+    </div>
+
+    <script>
+      // Theme support
+      const themeSelector = document.getElementById('theme');
+      
+      function applyTheme(t){
+        if(!t) return;
+        document.documentElement.classList.remove('theme-light','theme-dark');
+        document.documentElement.classList.add('theme-' + t);
+        try{ localStorage.setItem('clicom-theme', t); }catch(e){}
+      }
+
+      function initTheme(){
+        let stored = null;
+        try{ stored = localStorage.getItem('clicom-theme'); }catch(e){}
+        if(stored){ applyTheme(stored); themeSelector.value = stored; return }
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const defaultTheme = prefersDark ? 'dark' : 'light';
+        applyTheme(defaultTheme);
+        themeSelector.value = defaultTheme;
+      }
+
+      themeSelector && themeSelector.addEventListener('change', ()=>{ applyTheme(themeSelector.value) });
+      initTheme();
+    </script>
+
+    <!-- Scorch Game Script -->
+    <script type="text/javascript" src="/clicom/js/app.js"></script>
+  </body>
+</html>

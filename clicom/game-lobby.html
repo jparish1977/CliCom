@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clicom Game Lobby</title>
+    <style>
+      :root { --bg:#111; --text:#eee; --header-bg:#0b5; --header-text:#002; --chat-bg:#121212; --footer-bg:#0b0b0b; --input-bg:#111; --muted: #999; --accent: #4f9; }
+      .theme-light { --bg: #f6f7f9; --text:#111; --header-bg:#e6f2ff; --header-text:#0b2; --chat-bg:#fff; --footer-bg:#eee; --input-bg:#fff; --muted:#555; --accent: #0a8; }
+      .theme-dark  { --bg:#0f1113; --text:#eaeaea; --header-bg:#0b5; --header-text:#002; --chat-bg:#121212; --footer-bg:#0b0b0b; --input-bg:#111; --muted:#999; --accent: #4f9; }
+
+      html,body { height:100%; }
+      body { font-family: system-ui,Segoe UI,Arial; margin: 0; padding: 0; background:var(--bg); color:var(--text); transition: background .18s ease, color .18s ease; display: flex; flex-direction: column; }
+      header { background:var(--header-bg); padding: 12px; color:var(--header-text); display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+      
+      .main-layout { display: flex; flex: 1; gap: 0; overflow: hidden; }
+      .sidebar { width: 280px; border-right: 1px solid rgba(0,0,0,.1); overflow-y: auto; padding: 12px; }
+      .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+      
+      .game-section { display: flex; gap: 12px; flex: 1; padding: 12px; background: var(--chat-bg); overflow: hidden; }
+      .game-embed { flex: 2; min-width: 400px; border: 1px solid rgba(0,0,0,.2); border-radius: 4px; background: #000; }
+      .game-embed iframe { width: 100%; height: 100%; border: none; }
+      
+      .chat-panel { flex: 1; min-width: 250px; display: flex; flex-direction: column; border-left: 1px solid rgba(0,0,0,.1); }
+      #chat { flex: 1; overflow-y: auto; padding: 12px; background: var(--chat-bg); }
+      .chat-footer { display: flex; gap: 8px; padding: 12px; background: var(--footer-bg); border-top: 1px solid rgba(0,0,0,.1); }
+      .chat-footer input { flex: 1; }
+      
+      .section-title { font-weight: bold; margin-top: 12px; margin-bottom: 8px; font-size: .9em; color: var(--muted); text-transform: uppercase; }
+      .player-item, .challenge-item { padding: 8px; margin-bottom: 6px; border: 1px solid rgba(0,0,0,.15); border-radius: 4px; background: var(--input-bg); cursor: pointer; transition: all .2s; }
+      .player-item:hover { background: var(--accent); color: #000; }
+      .player-item.active { background: var(--accent); color: #000; font-weight: bold; }
+      .player-item .status { font-size: .8em; opacity: .7; }
+      
+      .challenge-item { cursor: default; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+      .challenge-item button { padding: 4px 8px; font-size: .85em; }
+      
+      input[type=text], button, select { padding: 8px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); background: var(--input-bg); color: inherit; }
+      button { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      button:hover:not(:disabled) { opacity: .9; }
+      
+      .msg { margin: 6px 0; }
+      .meta { opacity: .8; font-size: .9em; color: var(--muted); }
+      
+      .input-group { margin-bottom: 12px; }
+      .input-group label { display: block; font-size: .85em; margin-bottom: 4px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>Clicom Game Lobby</strong>
+        <div style="font-size:.9em">Challenge players to Scorched Earth</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:.9em">Theme:
+          <select id="theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <!-- Left Sidebar: Players & Challenges -->
+      <div class="sidebar">
+        <div class="input-group">
+          <label>Your name:</label>
+          <input id="name" type="text" placeholder="Guest" />
+        </div>
+        
+        <div class="input-group">
+          <label>Your color:</label>
+          <input id="color" type="text" placeholder="6 or #ff6600" />
+        </div>
+
+        <button id="connect" style="width:100%">Connect</button>
+        <button id="disconnect" style="width:100%;margin-top:6px" disabled>Disconnect</button>
+
+        <div class="section-title">Online Players</div>
+        <div id="players-list"></div>
+
+        <div class="section-title">Active Challenges</div>
+        <div id="challenges-list"></div>
+      </div>
+
+      <!-- Right Content Area: Game + Chat -->
+      <div class="content-area">
+        <div class="game-section">
+          <!-- Game Embed -->
+          <div class="game-embed">
+            <iframe id="game-frame" src="/scorch" title="Scorch Game"></iframe>
+          </div>
+
+          <!-- Chat Panel -->
+          <div class="chat-panel">
+            <div id="chat"></div>
+            <div class="chat-footer">
+              <input id="input" type="text" placeholder="Type a message..." />
+              <button id="send">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let ws = null;
+      const nameEl = document.getElementById('name');
+      const colorEl = document.getElementById('color');
+      const connectBtn = document.getElementById('connect');
+      const disconnectBtn = document.getElementById('disconnect');
+      const chat = document.getElementById('chat');
+      const input = document.getElementById('input');
+      const sendBtn = document.getElementById('send');
+      const themeSelector = document.getElementById('theme');
+      const playersList = document.getElementById('players-list');
+      const challengesList = document.getElementById('challenges-list');
+      const gameFrame = document.getElementById('game-frame');
+      
+      let onlineUsers = [];
+      let activeChallenges = [];
+
+      function applyTheme(t){
+        if(!t) return;
+        document.documentElement.classList.remove('theme-light','theme-dark');
+        document.documentElement.classList.add('theme-' + t);
+        try{ localStorage.setItem('clicom-theme', t); }catch(e){}
+      }
+
+      function initTheme(){
+        let stored = null;
+        try{ stored = localStorage.getItem('clicom-theme'); }catch(e){}
+        if(stored){ applyTheme(stored); themeSelector.value = stored; return }
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const defaultTheme = prefersDark ? 'dark' : 'light';
+        applyTheme(defaultTheme);
+        themeSelector.value = defaultTheme;
+      }
+
+      themeSelector && themeSelector.addEventListener('change', ()=>{ applyTheme(themeSelector.value) });
+
+      function addMessage(text, cls='msg'){
+        const d = document.createElement('div'); d.className = cls; d.innerHTML = text; chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+      }
+
+      function wsUrl(){
+        const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return p + '//' + location.host + '/ws';
+      }
+
+      function updatePlayersList(){
+        playersList.innerHTML = '';
+        onlineUsers.forEach(user => {
+          if(user === (nameEl.value || 'Guest')) return; // Skip self
+          const div = document.createElement('div');
+          div.className = 'player-item';
+          div.innerHTML = `<div>${user}</div><div class="status">Online</div>`;
+          div.addEventListener('click', ()=>{ challengePlayer(user) });
+          playersList.appendChild(div);
+        });
+      }
+
+      function challengePlayer(opponent){
+        if(!ws) return;
+        const challenger = nameEl.value || 'Guest';
+        ws.send(JSON.stringify({
+          type: 'challenge',
+          challenger,
+          opponent,
+          timestamp: Date.now()
+        }));
+        addMessage(`<em>Challenge sent to ${opponent}</em>`, 'meta');
+      }
+
+      function acceptChallenge(challengeId){
+        if(!ws) return;
+        ws.send(JSON.stringify({
+          type: 'accept-challenge',
+          challenge_id: challengeId
+        }));
+      }
+
+      connectBtn.addEventListener('click', ()=>{
+        if(ws) return;
+        const name = (nameEl.value || 'Guest');
+        const color = (colorEl.value || '6');
+        addMessage('Connecting...', 'meta');
+        try{
+          ws = new WebSocket(wsUrl());
+        }catch(e){ addMessage('WebSocket error: '+e, 'meta'); return }
+        ws.addEventListener('open', ()=>{
+          addMessage('Connected', 'meta');
+          ws.send(JSON.stringify({type:'join', name}));
+          connectBtn.disabled = true; disconnectBtn.disabled = false;
+        });
+        ws.addEventListener('message', (ev)=>{
+          try{ const data = JSON.parse(ev.data);
+            if(data.type==='system') addMessage('<em>✱ '+data.text+'</em>', 'meta');
+            else if(data.type==='message'){
+              const name = data.name;
+              const text = data.text;
+              addMessage('<strong>'+name+':</strong> '+text, 'msg');
+            } else if(data.type==='active_users'){
+              onlineUsers = data.users;
+              updatePlayersList();
+              addMessage('<em>Users: '+data.users.join(', ')+'</em>', 'meta');
+            } else if(data.type==='who') addMessage('<em>Who: '+data.users.join(', ')+'</em>', 'meta');
+            else if(data.type==='challenge'){
+              activeChallenges.push(data);
+              const cid = data.challenge_id || Math.random();
+              const item = document.createElement('div');
+              item.className = 'challenge-item';
+              item.innerHTML = `<div>${data.challenger} → ${data.opponent}</div><button onclick="acceptChallenge('${cid}')">Accept</button>`;
+              challengesList.appendChild(item);
+              addMessage(`<em>⚔️ ${data.challenger} challenged ${data.opponent}!</em>`, 'meta');
+            }
+          }catch(e){ console.warn('bad msg', ev.data) }
+        });
+        ws.addEventListener('close', ()=>{ addMessage('Disconnected','meta'); ws=null; connectBtn.disabled=false; disconnectBtn.disabled=true });
+        ws.addEventListener('error', (e)=>{ addMessage('WebSocket error','meta') });
+      });
+
+      disconnectBtn.addEventListener('click', ()=>{
+        if(!ws) return; ws.send(JSON.stringify({type:'leave', name: nameEl.value || 'Guest'})); ws.close();
+      });
+
+      sendBtn.addEventListener('click', ()=>{
+        const v = input.value.trim(); if(!v || !ws) return; ws.send(JSON.stringify({type:'message', name: nameEl.value || 'Guest', color: colorEl.value || '6', text: v})); input.value='';
+      });
+
+      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendBtn.click(); });
+
+      // Load stored name/color
+      try{
+        const stored = JSON.parse(localStorage.getItem('clicom-game-user') || '{}');
+        if(stored.name) nameEl.value = stored.name;
+        if(stored.color) colorEl.value = stored.color;
+      }catch(e){}
+
+      // Save name/color on input
+      nameEl.addEventListener('change', ()=>{
+        try{ localStorage.setItem('clicom-game-user', JSON.stringify({name: nameEl.value, color: colorEl.value})); }catch(e){}
+      });
+      colorEl.addEventListener('change', ()=>{
+        try{ localStorage.setItem('clicom-game-user', JSON.stringify({name: nameEl.value, color: colorEl.value})); }catch(e){}
+      });
+
+      // Initialize
+      initTheme();
+      addMessage('Welcome to Clicom Game Lobby! Challenge players and play Scorched Earth.', 'meta');
+      addMessage('Connect to get started.', 'meta');
+    </script>
+  </body>
+</html>
