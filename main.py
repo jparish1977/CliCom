@@ -170,6 +170,21 @@ async def chat_client(name, color_code):
                         settings["color_code"] = new_color
                         save_json(SETTINGS_FILE,settings)
                         print(SYSTEM_COLOR+"✨ Color updated!")
+                    elif msg.strip().lower()=="/clear":
+                        clear()
+                    elif msg.strip().lower()=="/help":
+                        print(SYSTEM_COLOR+"\n" + "="*60)
+                        print(SYSTEM_COLOR+"CLICOM — Available Commands")
+                        print(SYSTEM_COLOR+"="*60)
+                        print(SYSTEM_COLOR+"/exit           Leave the chat")
+                        print(SYSTEM_COLOR+"/stats          Show message counts and unique users met")
+                        print(SYSTEM_COLOR+"/who            List active users online")
+                        print(SYSTEM_COLOR+"/color          Change your chat color (named 1-6 or HEX)")
+                        print(SYSTEM_COLOR+"/server [url]   View or change server")
+                        print(SYSTEM_COLOR+"               Shortcuts: 'default', 'local', or full URL")
+                        print(SYSTEM_COLOR+"/clear          Clear the screen")
+                        print(SYSTEM_COLOR+"/help           Show this help message")
+                        print(SYSTEM_COLOR+"="*60 + "\n")
                     elif msg.strip():
                         await ws.send_json({"type":"message","name":name,"color":color_code,"text":msg})
 

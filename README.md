@@ -174,11 +174,13 @@ See `requirements.txt`:
 
 ## Client Commands
 Terminal client (`main.py`) supports:
+- `/help` — Display this help message
 - `/exit` — Leave the chat
 - `/stats` — Show your message counts and unique users met
 - `/who` — List active users
 - `/color` — Change your chat color (named colors or hex)
 - `/server <url>` — Changes the server url `default`, `local`, `wss://<host:port>/ws`, `ws://<host:port>/ws`
+- `/clear` — Clear the screen
 
 ## Notes & Next steps
 - Add connection error handling (allow change server or retry)
