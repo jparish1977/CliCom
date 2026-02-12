@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clicom Web Client</title>
+    <style>
+      :root { --bg:#111; --text:#eee; --header-bg:#0b5; --header-text:#002; --chat-bg:#121212; --footer-bg:#0b0b0b; --input-bg:#111; --muted: #999 }
+      .theme-light { --bg: #f6f7f9; --text:#111; --header-bg:#e6f2ff; --header-text:#0b2; --chat-bg:#fff; --footer-bg:#eee; --input-bg:#fff; --muted:#555 }
+      .theme-dark  { --bg:#0f1113; --text:#eaeaea; --header-bg:#0b5; --header-text:#002; --chat-bg:#121212; --footer-bg:#0b0b0b; --input-bg:#111; --muted:#999 }
+
+      html,body { height:100%; }
+      body { font-family: system-ui,Segoe UI,Arial; margin: 0; padding: 0; background:var(--bg); color:var(--text); transition: background .18s ease, color .18s ease }
+      header { background:var(--header-bg); padding: 12px; color:var(--header-text); }
+      #chat { height: 60vh; overflow:auto; padding:12px; background:var(--chat-bg); }
+      .msg { margin:6px 0; }
+      .meta { opacity: .8; font-size: .9em; color:var(--muted) }
+      footer { display:flex; gap:8px; padding:12px; background:var(--footer-bg) }
+      input[type=text], button, select { padding:8px; border-radius:4px; border:1px solid rgba(0,0,0,.12); }
+      input[type=text] { flex:1; background:var(--input-bg); color:inherit }
+      select { background:var(--input-bg); color:inherit }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div style="display:flex;align-items:center;gap:12px;justify-content:space-between">
+        <div>
+          <strong>Clicom — Web Client</strong>
+          <div style="font-size:.9em">Simple WebSocket chat UI (connects to <code>/ws</code>)</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:.9em">Theme:
+            <select id="theme" title="Choose theme">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div style="padding:12px">
+        <label>Your name: <input id="name" type="text" placeholder="Guest"/></label>
+        <label style="margin-left:8px">Color: <input id="color" type="text" placeholder="6 or #ff6600"/></label>
+        <button id="connect">Connect</button>
+        <button id="disconnect" disabled>Disconnect</button>
+      </div>
+
+      <div id="chat"></div>
+
+      <footer>
+        <input id="input" type="text" placeholder="Type a message..." />
+        <button id="send">Send</button>
+      </footer>
+    </main>
+
+    <script>
+      let ws = null;
+      const chat = document.getElementById('chat');
+      const nameEl = document.getElementById('name');
+      const colorEl = document.getElementById('color');
+      const connectBtn = document.getElementById('connect');
+      const disconnectBtn = document.getElementById('disconnect');
+      const input = document.getElementById('input');
+      const sendBtn = document.getElementById('send');
+      const themeSelector = document.getElementById('theme');
+
+      function applyTheme(t){
+        if(!t) return;
+        document.documentElement.classList.remove('theme-light','theme-dark');
+        document.documentElement.classList.add('theme-' + t);
+        try{ localStorage.setItem('clicom-theme', t); }catch(e){}
+      }
+
+      function initTheme(){
+        let stored = null;
+        try{ stored = localStorage.getItem('clicom-theme'); }catch(e){}
+        if(stored){ applyTheme(stored); themeSelector.value = stored; return }
+        // default to system preference
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const defaultTheme = prefersDark ? 'dark' : 'light';
+        applyTheme(defaultTheme);
+        themeSelector.value = defaultTheme;
+      }
+
+      themeSelector && themeSelector.addEventListener('change', ()=>{ applyTheme(themeSelector.value) });
+
+      function addMessage(text, cls='msg'){
+        const d = document.createElement('div'); d.className = cls; d.innerHTML = text; chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+      }
+
+      function wsUrl(){
+        const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return p + '//' + location.host + '/ws';
+      }
+
+      connectBtn.addEventListener('click', ()=>{
+        if(ws) return;
+        const name = (nameEl.value || 'Guest');
+        const color = (colorEl.value || '6');
+        addMessage('Connecting...', 'meta');
+        try{
+          ws = new WebSocket(wsUrl());
+        }catch(e){ addMessage('WebSocket error: '+e, 'meta'); return }
+        ws.addEventListener('open', ()=>{
+          addMessage('Connected', 'meta');
+          ws.send(JSON.stringify({type:'join', name}));
+          connectBtn.disabled = true; disconnectBtn.disabled = false;
+        });
+        ws.addEventListener('message', (ev)=>{
+          try{ const data = JSON.parse(ev.data);
+            if(data.type==='system') addMessage('<em>✱ '+data.text+'</em>', 'meta');
+            else if(data.type==='message'){
+              const name = data.name;
+              const text = data.text;
+              addMessage('<strong>'+name+':</strong> '+text, 'msg');
+            } else if(data.type==='active_users') addMessage('<em>Users: '+data.users.join(', ')+'</em>', 'meta');
+            else if(data.type==='who') addMessage('<em>Who: '+data.users.join(', ')+'</em>', 'meta');
+          }catch(e){ console.warn('bad msg', ev.data) }
+        });
+        ws.addEventListener('close', ()=>{ addMessage('Disconnected','meta'); ws=null; connectBtn.disabled=false; disconnectBtn.disabled=true });
+        ws.addEventListener('error', (e)=>{ addMessage('WebSocket error','meta') });
+      });
+
+      disconnectBtn.addEventListener('click', ()=>{
+        if(!ws) return; ws.send(JSON.stringify({type:'leave', name: nameEl.value || 'Guest'})); ws.close();
+      });
+
+      sendBtn.addEventListener('click', ()=>{
+        const v = input.value.trim(); if(!v || !ws) return; ws.send(JSON.stringify({type:'message', name: nameEl.value || 'Guest', color: colorEl.value || '6', text: v})); input.value='';
+      });
+
+      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendBtn.click(); });
+
+      // Initialize theme selector on startup
+      initTheme();
+    </script>
+  </body>
+</html>

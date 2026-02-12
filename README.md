@@ -24,6 +24,9 @@ Terminal Client (`main.py`):
 - `main.py` — Terminal client with colorful UI
 - `requirements.txt` — Python dependencies
 
+Web client:
+- A minimal browser client is available at `/client` when running `server.py`. It lives in the `clicom/` folder as `client.html`.
+
 ## Requirements
 - Python 3.8+ (async/await + aiohttp)
 - Windows PowerShell example commands are shown below
@@ -41,15 +44,73 @@ Run the server (in one terminal):
 ```powershell
 $env:PORT = 10000
 python .\server.py
+# Clicom
+
+Lightweight WebSocket chat system with both server and clients (terminal + web) built with Python and aiohttp.
+
+This repository contains:
+- `server.py`: A simple async chat server that accepts WebSocket connections and broadcasts messages.
+- `main.py`: A feature-rich terminal client with colors, stats tracking, and a nice ASCII banner.
+- `clicom/client.html`: A minimal browser client (served by the server at `/client`).
+
+## Features
+
+Server (`server.py`):
+- WebSocket chat endpoint (`/ws`) with simple JSON protocol
+- Active-users broadcasts and basic /who support
+- Serves a minimal browser client at `/client` and static assets under `/clicom/`
+- Runs on configurable port via the `PORT` environment variable (default 10000)
+
+Terminal Client (`main.py`):
+- Colorful interface with ASCII banner and ANSI color support
+- Stats tracking (messages sent/received, unique users met)
+- Supports named colors (1-6) and custom HEX colors (e.g., #ff6600)
+- Settings persistence (remembers your name and color)
+
+Web Browser Client (`clicom/client.html`):
+- Single-file HTML/JS client that connects to the same server's `/ws` endpoint
+- Includes a Light / Dark theme picker (persisted in browser `localStorage`)
+- Simple inputs for name and color (accepts named codes like `6` or HEX like `#ff6600`)
+
+## Project Files
+- `server.py` — WebSocket chat server (aiohttp)
+- `main.py` — Terminal client with colorful UI
+- `clicom/client.html` — Minimal browser client (single-file)
+- `requirements.txt` — Python dependencies
+
+## Requirements
+- Python 3.8+ (async/await + aiohttp)
+
+## Install & Run (PowerShell)
+First, create a virtual environment and install dependencies:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Run the server (in one terminal):
+```powershell
+$env:PORT = 10000
+python .\server.py
 # Server listens on 0.0.0.0:10000
 ```
+
+Open the browser client (same machine):
+
+- http://localhost:10000/client
 
 Run the terminal client (in another terminal):
 ```powershell
 python .\main.py
 ```
 
-The server listens on `0.0.0.0:$PORT` (default 10000). Connect a WebSocket client to ws://localhost:10000/ws
+The server listens on `0.0.0.0:$PORT` (default 10000). Connect a WebSocket client to `ws://localhost:10000/ws`.
+
+## Web Client Notes
+- Theme: The browser client includes a Light/Dark picker. The selected theme is stored in `localStorage` (key `clicom-theme`) and persists across reloads. If no stored theme exists, it defaults to the system preference.
+- Colors: The client accepts named color codes (1-6) and custom HEX values (e.g., `#ff6600`). The terminal client and server follow the same simple color convention.
 
 ## WebSocket protocol (JSON)
 Clients and server exchange JSON objects with a `type` field.
@@ -84,7 +145,6 @@ Server-to-client message examples:
 See `requirements.txt`:
 - `aiohttp`: WebSocket client/server (used by both `server.py` and `main.py`)
 - `colorama`: Terminal colors (used by `main.py`)
-- `aiortc`, `cryptography`: Not currently used, may be for planned features
 
 ## Client Commands
 Terminal client (`main.py`) supports:
@@ -95,7 +155,7 @@ Terminal client (`main.py`) supports:
 - `/server <url>` — Changes the server url `default`, `local`, `wss://<host:port>/ws`, `ws://<host:port>/ws`
 
 ## Notes & Next steps
-- Add connection error handling (allow chnage server or retry?)
+- Add connection error handling (allow change server or retry)
 - Add automatic reconnect when server changes
 - Add room support to allow private conversations
 - Add error logging.

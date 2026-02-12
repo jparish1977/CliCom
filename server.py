@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 from aiohttp import web
 
 connected_users = {}  # ws -> username
@@ -86,13 +87,28 @@ async def broadcast_active_users():
             if ws in connected_users: del connected_users[ws]
 
 async def index(request):
-    return web.Response(text="Clicom Chat Server is running.", content_type="text/plain")
+    # Serve a plain-text index; the browser client is available at /client
+    return web.Response(text="Clicom Chat Server is running. Visit /client for the web client.", content_type="text/plain")
+
+
+async def client_page(request):
+    # Return the static client.html file from the clicom/ folder
+    root = Path(__file__).parent / 'clicom'
+    client_file = root / 'client.html'
+    if client_file.exists():
+        return web.FileResponse(path=str(client_file))
+    return web.Response(text="Client not found.", status=404)
 
 app = web.Application()
 app.add_routes([
     web.get("/", index),
+    web.get("/client", client_page),
     web.get("/ws", websocket_handler)
 ])
+
+# Serve static assets under /clicom/ (exposes files from ./clicom)
+static_path = str(Path(__file__).parent / 'clicom')
+app.router.add_static('/clicom/', static_path, show_index=True)
 
 if __name__ == "__main__":
     # Render uses $PORT environment variable
